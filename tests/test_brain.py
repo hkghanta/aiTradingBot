@@ -53,29 +53,41 @@ def test_fit_and_predict(bars):
 
 
 def test_inference_has_no_look_ahead(bars):
-    """The regime at bar T must not depend on bars after T (filtering only)."""
+    """The filtered posterior at bar T must not depend on bars after T.
+
+    We compute per-bar filtered posteriors on the full feature matrix, then on a
+    matrix truncated at bar T. A forward (filtering) algorithm yields the same
+    posterior for bar T either way; a smoothing algorithm (look-ahead) would not,
+    because it would have folded in the future bars.
+    """
 
     model = RegimeModel(BrainConfig(n_regimes=4)).fit(bars)
+    feats, _ = build_features(bars)
+    X = model._scaler.transform(feats)
 
-    # Predict on the full series, then on a truncated series ending at the same
-    # bar. A forward (filtering) algorithm gives an identical posterior; a
-    # smoothing algorithm (look-ahead) would differ because it sees the future.
+    full = model.filtered_posteriors(X)
     cut = 80
-    fresh_full = RegimeModel(BrainConfig(n_regimes=4))
-    fresh_full._model = model._model
-    fresh_full._scaler = model._scaler
-    fresh_full._state_to_regime = model._state_to_regime
-    sig_truncated = fresh_full.predict(bars[:-cut])
+    truncated = model.filtered_posteriors(X[: len(X) - cut])
 
-    fresh_full2 = RegimeModel(BrainConfig(n_regimes=4))
-    fresh_full2._model = model._model
-    fresh_full2._scaler = model._scaler
-    fresh_full2._state_to_regime = model._state_to_regime
-    # Build the longer series but compare the posterior computed at the same
-    # final bar by truncating identically.
-    sig_same = fresh_full2.predict(bars[:-cut])
+    target_bar = len(X) - cut - 1
+    np.testing.assert_allclose(full[target_bar], truncated[-1], rtol=1e-9, atol=1e-12)
 
-    assert sig_truncated.probabilities == sig_same.probabilities
+
+def test_filtering_differs_from_smoothing(bars):
+    """Sanity check: filtering (ours) genuinely differs from smoothing.
+
+    If they were identical we might be leaking future data; they should differ on
+    at least some bars because smoothing incorporates the whole sequence.
+    """
+
+    model = RegimeModel(BrainConfig(n_regimes=4)).fit(bars)
+    feats, _ = build_features(bars)
+    X = model._scaler.transform(feats)
+
+    filt = model.filtered_posteriors(X)
+    _, smoothed = model._model.score_samples(X)  # forward-backward (look-ahead)
+    # Early/middle bars should differ; the last bar coincides by definition.
+    assert not np.allclose(filt[: len(X) // 2], smoothed[: len(X) // 2], atol=1e-3)
 
 
 def test_save_load_roundtrip(tmp_path, bars):

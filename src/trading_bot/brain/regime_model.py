@@ -102,27 +102,48 @@ class RegimeModel:
         logger.info("RegimeModel fitted: %d regimes, %d training samples", n, len(X))
         return self
 
-    def _filtered_state_posterior(self, X: np.ndarray) -> np.ndarray:
-        """Forward-algorithm (filtering) posterior over states at the last bar.
+    def filtered_posteriors(self, X: np.ndarray) -> np.ndarray:
+        """Per-bar filtered state posteriors via the forward algorithm.
 
-        Uses only bars up to and including the last row of ``X`` -- no smoothing,
-        hence no look-ahead.
+        Returns an ``(n_samples, n_states)`` array where row ``t`` is the
+        posterior over states given bars ``0..t`` only (filtering, not
+        smoothing) -- so it never uses future bars. Covariances are jittered and
+        non-finite emissions are floored to keep the recursion numerically safe.
         """
 
         assert self._model is not None
         m = self._model
         K = m.n_components
-        log_b = np.column_stack(
-            [
-                multivariate_normal.logpdf(X, m.means_[k], m.covars_[k], allow_singular=True)
-                for k in range(K)
-            ]
-        )
+        n = len(X)
+        dim = X.shape[1]
+
+        log_b = np.empty((n, K))
+        for k in range(K):
+            cov = np.asarray(m.covars_[k]) + np.eye(dim) * 1e-6
+            log_b[:, k] = multivariate_normal.logpdf(X, m.means_[k], cov, allow_singular=True)
+        log_b = np.nan_to_num(log_b, nan=-1e10, neginf=-1e10, posinf=1e10)
+
         log_t = np.log(m.transmat_ + 1e-300)
+        out = np.empty((n, K))
         log_alpha = np.log(m.startprob_ + 1e-300) + log_b[0]
-        for t in range(1, len(X)):
+        out[0] = self._normalize(log_alpha)
+        for t in range(1, n):
             log_alpha = logsumexp(log_alpha[:, None] + log_t, axis=0) + log_b[t]
-        return np.exp(log_alpha - logsumexp(log_alpha))
+            out[t] = self._normalize(log_alpha)
+        return out
+
+    @staticmethod
+    def _normalize(log_alpha: np.ndarray) -> np.ndarray:
+        post = np.exp(log_alpha - logsumexp(log_alpha))
+        total = post.sum()
+        if not np.isfinite(total) or total <= 0:
+            return np.full_like(post, 1.0 / len(post))
+        return post / total
+
+    def _filtered_state_posterior(self, X: np.ndarray) -> np.ndarray:
+        """Filtering posterior over states at the latest bar (no look-ahead)."""
+
+        return self.filtered_posteriors(X)[-1]
 
     def predict(self, bars: Sequence[Bar]) -> RegimeSignal:
         """Return the current regime signal for the latest bar."""
