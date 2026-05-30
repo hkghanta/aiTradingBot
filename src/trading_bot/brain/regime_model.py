@@ -70,7 +70,7 @@ class RegimeModel:
     def is_fitted(self) -> bool:
         return self._model is not None
 
-    def fit(self, bars: Sequence[Bar]) -> "RegimeModel":
+    def fit(self, bars: Sequence[Bar]) -> RegimeModel:
         """Train the HMM on historical bars and label its hidden states."""
 
         feats, _ = build_features(bars)
@@ -192,7 +192,7 @@ class RegimeModel:
             )
 
     @classmethod
-    def load(cls, path: str) -> "RegimeModel":
+    def load(cls, path: str) -> RegimeModel:
         with open(path, "rb") as fh:
             data = pickle.load(fh)
         obj = cls(config=data["config"], min_persist=data["min_persist"])

@@ -7,10 +7,10 @@ without importing each other's implementation details.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Mapping
 
 
 class Regime(Enum):
