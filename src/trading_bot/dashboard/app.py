@@ -9,13 +9,37 @@ the data endpoints are stubs to be filled in as the pipeline produces state.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 from fastapi import FastAPI
 
 from trading_bot.core.config import DashboardConfig
 
+# A state provider returns the current bot state as a JSON-serializable dict
+# (see Engine.state_dict). When omitted, the dashboard serves an empty snapshot.
+StateProvider = Callable[[], dict[str, Any]]
 
-def create_app(config: DashboardConfig | None = None) -> FastAPI:
-    """Build the dashboard FastAPI application."""
+_EMPTY_STATE: dict[str, Any] = {
+    "regime": None,
+    "confidence": None,
+    "probabilities": {},
+    "invested_fraction": None,
+    "account": None,
+    "safety": {"tripped": False, "reasons": []},
+    "recent_orders": [],
+}
+
+
+def create_app(
+    config: DashboardConfig | None = None,
+    state_provider: StateProvider | None = None,
+) -> FastAPI:
+    """Build the dashboard FastAPI application.
+
+    Pass ``state_provider`` (e.g. ``engine.state_dict``) to surface live bot
+    state on ``/api/state``; without it the endpoint returns an empty snapshot.
+    """
 
     config = config or DashboardConfig()
     app = FastAPI(title="aiTradingBot Dashboard", version="0.1.0")
@@ -25,15 +49,9 @@ def create_app(config: DashboardConfig | None = None) -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/api/state")
-    def state() -> dict[str, object]:
-        """Current bot state. Stub -- returns an empty snapshot for now."""
+    def state() -> dict[str, Any]:
+        """Current bot state (regime, allocation, account, safety, orders)."""
 
-        return {
-            "regime": None,
-            "allocation": None,
-            "account": None,
-            "safety": {"tripped": False, "reasons": []},
-            "recent_orders": [],
-        }
+        return state_provider() if state_provider else dict(_EMPTY_STATE)
 
     return app

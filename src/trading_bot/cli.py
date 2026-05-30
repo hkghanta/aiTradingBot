@@ -16,9 +16,29 @@ logger = get_logger(__name__)
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    import json
+
+    from trading_bot.broker.mock_broker import MockBroker
+    from trading_bot.engine import Engine
+
     config = load_config(args.config_dir)
     logger.info("Loaded config for symbols: %s", config.symbols)
-    logger.warning("Engine run loop is not yet implemented (scaffolding).")
+
+    if args.broker == "mock":
+        broker = MockBroker(symbols=config.symbols, history=config.brain.lookback_days * 3)
+    else:  # alpaca
+        from trading_bot.broker.alpaca_broker import AlpacaBroker
+
+        broker = AlpacaBroker(config.alpaca)
+        broker.connect()
+
+    engine = Engine(config, broker)
+    for i in range(args.cycles):
+        state = engine.run_cycle()
+        regime = state.signal.regime.name if state.signal else "?"
+        logger.info("cycle %d: regime=%s orders=%d", i + 1, regime, len(state.recent_orders))
+
+    print(json.dumps(engine.state_dict(), indent=2))
     return 0
 
 
@@ -39,6 +59,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_p = sub.add_parser("run", help="Run the trading engine loop.")
+    run_p.add_argument(
+        "--broker", choices=["mock", "alpaca"], default="mock", help="Broker backend."
+    )
+    run_p.add_argument("--cycles", type=int, default=5, help="Number of cycles to run.")
     run_p.set_defaults(func=_cmd_run)
 
     dash_p = sub.add_parser("dashboard", help="Serve the dashboard.")
