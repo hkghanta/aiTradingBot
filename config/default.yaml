@@ -1,0 +1,28 @@
+# Non-secret tunables. Copy to config/local.yaml (gitignored) to override.
+# Secrets (API keys) come from environment / .env, never from here.
+
+symbols:
+  - SPY
+
+brain:
+  n_regimes: 5
+  lookback_days: 252
+  retrain_interval_days: 5
+
+allocation:
+  # Target invested fraction by regime (cash = 1 - fraction).
+  invested_fraction_by_regime:
+    CRASH: 0.0
+    BEAR: 0.25
+    NEUTRAL: 0.5
+    BULL: 0.85
+    EUPHORIA: 1.0
+
+safety:
+  max_daily_loss_pct: 0.05
+  max_drawdown_pct: 0.20
+  max_position_pct: 0.25
+
+dashboard:
+  host: 127.0.0.1
+  port: 8000
