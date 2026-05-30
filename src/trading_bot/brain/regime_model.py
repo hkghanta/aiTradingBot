@@ -170,9 +170,8 @@ class RegimeModel:
 
         if len(self._recent_raw) < 2:
             return 1.0
-        changes = sum(
-            1 for a, b in zip(self._recent_raw, list(self._recent_raw)[1:]) if a != b
-        )
+        recent = list(self._recent_raw)
+        changes = sum(1 for a, b in zip(recent, recent[1:], strict=False) if a != b)
         # >4 changes in the recent window is treated as unstable.
         return 0.5 if changes > 4 else 1.0
 

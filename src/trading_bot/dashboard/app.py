@@ -3,8 +3,8 @@
 Exposes the bot's live state: current regime, target allocation, recent orders,
 account equity, and whether any circuit breaker has tripped.
 
-The factory below returns a configured app with a health endpoint wired up;
-the data endpoints are stubs to be filled in as the pipeline produces state.
+The factory wires a health endpoint and ``/api/state``; pass a ``state_provider``
+(e.g. ``Engine.state_dict``) to surface live bot state.
 """
 
 from __future__ import annotations
