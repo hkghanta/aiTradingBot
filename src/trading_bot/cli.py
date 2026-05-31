@@ -31,7 +31,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
         from trading_bot.broker.alpaca_broker import AlpacaBroker
 
         broker = AlpacaBroker(config.alpaca)
-        broker.connect()
+        try:
+            broker.connect()
+        except RuntimeError as exc:
+            logger.error("%s", exc)
+            logger.error("Tip: run with --broker mock to test offline without credentials.")
+            return 1
 
     engine = Engine(config, broker)
     for i in range(args.cycles):
