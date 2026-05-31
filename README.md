@@ -64,12 +64,27 @@ can halt trading and cancel open orders. Limits live in `config/default.yaml`.
 
 ## Roadmap
 
-- [ ] Brain: feature engineering + HMM training/inference
-- [ ] Allocation: regime → invested fraction → per-symbol weights
-- [ ] Safety: implement and unit-test each circuit breaker
-- [ ] Broker: Alpaca paper-trading adapter (account, data, orders)
-- [ ] Engine: target-to-order diffing and the run loop
-- [ ] Dashboard: live state endpoints + UI
-- [ ] Backtesting harness with the mock broker
+- [x] Brain: feature engineering + HMM training/inference (forward-algorithm
+      filtering, no look-ahead; 3-bar stability filter)
+- [x] Allocation: regime → invested fraction → per-symbol weights
+- [x] Safety: circuit breakers (daily loss, drawdown, concentration) + tests
+- [x] Broker: Alpaca paper-trading adapter (account, data, orders) + mock broker
+- [x] Engine: target-to-order diffing and the run loop
+- [x] Backtesting: walk-forward harness + performance metrics and benchmarks
+- [ ] Dashboard: richer live UI (current API serves `/api/state`)
+- [ ] Safety: down-10%-from-peak lock file requiring manual reset
 - [ ] IBKR adapter for high-volume / live trading
+
+## Backtesting
+
+```bash
+trading-bot backtest --history 1200
+```
+
+Runs a walk-forward backtest on synthetic regime-switching data: the HMM is fit
+on each in-sample window, then the regime-driven allocation is evaluated
+out-of-sample with **causal** (no look-ahead) signals. The JSON report includes
+total return, Sharpe, max drawdown, win rate, per-regime and confidence-bucket
+breakdowns, and comparisons against buy-and-hold, 200-day SMA trend following,
+and a random-allocation control.
 ```
