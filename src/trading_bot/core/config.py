@@ -63,12 +63,25 @@ class DashboardConfig(BaseModel):
     port: int = 8000
 
 
+class BacktestConfig(BaseModel):
+    # Walk-forward window sizes, in trading days.
+    train_size: int = 252  # ~1 year in-sample to fit the HMM
+    test_size: int = 126  # ~6 months out-of-sample evaluation
+    step: int = 126  # how far to roll the window each iteration
+    # Round-trip transaction cost charged on turnover, in basis points.
+    slippage_bps: float = 5.0
+    # Trend-following benchmark lookback (200-day SMA is the common default).
+    sma_window: int = 200
+    periods_per_year: int = 252
+
+
 class AppConfig(BaseModel):
     symbols: list[str] = Field(default_factory=lambda: ["SPY"])
     brain: BrainConfig = Field(default_factory=BrainConfig)
     allocation: AllocationConfig = Field(default_factory=AllocationConfig)
     safety: SafetyConfig = Field(default_factory=SafetyConfig)
     dashboard: DashboardConfig = Field(default_factory=DashboardConfig)
+    backtest: BacktestConfig = Field(default_factory=BacktestConfig)
     alpaca: AlpacaSettings = Field(default_factory=AlpacaSettings)
 
 

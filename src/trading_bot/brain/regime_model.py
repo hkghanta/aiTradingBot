@@ -145,17 +145,11 @@ class RegimeModel:
 
         return self.filtered_posteriors(X)[-1]
 
-    def predict(self, bars: Sequence[Bar]) -> RegimeSignal:
-        """Return the current regime signal for the latest bar."""
+    def _signal_from_state_post(
+        self, state_post: np.ndarray, timestamp
+    ) -> RegimeSignal:
+        """Build a stability-filtered RegimeSignal from a state posterior."""
 
-        if self._model is None or self._scaler is None:
-            raise RuntimeError("RegimeModel must be fitted before predict().")
-
-        feats, aligned = build_features(bars)
-        X = self._scaler.transform(feats)
-        state_post = self._filtered_state_posterior(X)
-
-        # Aggregate state probabilities into regime probabilities.
         probs: dict[Regime, float] = {r: 0.0 for r in regimes_for_count(self.config.n_regimes)}
         for state, p in enumerate(state_post):
             probs[self._state_to_regime[state]] += float(p)
@@ -165,11 +159,47 @@ class RegimeModel:
         confidence = probs[committed] * self._stability_factor()
 
         return RegimeSignal(
-            timestamp=aligned[-1].timestamp,
+            timestamp=timestamp,
             regime=committed,
             probabilities=probs,
             confidence=confidence,
         )
+
+    def predict(self, bars: Sequence[Bar]) -> RegimeSignal:
+        """Return the current regime signal for the latest bar."""
+
+        if self._model is None or self._scaler is None:
+            raise RuntimeError("RegimeModel must be fitted before predict().")
+
+        feats, aligned = build_features(bars)
+        X = self._scaler.transform(feats)
+        state_post = self._filtered_state_posterior(X)
+        return self._signal_from_state_post(state_post, aligned[-1].timestamp)
+
+    def predict_path(self, bars: Sequence[Bar]) -> list[RegimeSignal]:
+        """Return a causal regime signal for every usable bar.
+
+        Each signal at index ``t`` uses only bars ``<= t`` (filtering) and the
+        stability filter is advanced bar-by-bar, exactly as it would be live.
+        This is what the backtester consumes so there is no look-ahead. The
+        returned list aligns with ``build_features(bars)[1]`` (the warmup region
+        is dropped).
+        """
+
+        if self._model is None or self._scaler is None:
+            raise RuntimeError("RegimeModel must be fitted before predict_path().")
+
+        feats, aligned = build_features(bars)
+        X = self._scaler.transform(feats)
+        posteriors = self.filtered_posteriors(X)
+
+        # Reset stability state so the walk starts clean.
+        self._recent_raw.clear()
+        self._committed = None
+        return [
+            self._signal_from_state_post(posteriors[t], aligned[t].timestamp)
+            for t in range(len(aligned))
+        ]
 
     def _apply_stability(self, raw: Regime) -> Regime:
         """Only switch the committed regime after ``min_persist`` agreeing bars."""

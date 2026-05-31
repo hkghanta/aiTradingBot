@@ -1,7 +1,8 @@
 """Command-line entry point.
 
 Subcommands:
-  * ``run``       -- run the trading engine loop (not yet implemented).
+  * ``run``       -- run the trading engine loop.
+  * ``backtest``  -- walk-forward backtest against synthetic/mock data.
   * ``dashboard`` -- serve the FastAPI dashboard.
 """
 
@@ -42,6 +43,21 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_backtest(args: argparse.Namespace) -> int:
+    import json
+
+    from trading_bot.backtest import WalkForwardBacktester
+    from trading_bot.broker.mock_broker import MockBroker
+
+    config = load_config(args.config_dir)
+    broker = MockBroker(symbols=config.symbols, history=args.history)
+    bars = broker.get_recent_bars(config.symbols[0], args.history)
+
+    result = WalkForwardBacktester(config).run(bars)
+    print(json.dumps(result.to_dict(), indent=2))
+    return 0
+
+
 def _cmd_dashboard(args: argparse.Namespace) -> int:
     import uvicorn
 
@@ -64,6 +80,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     run_p.add_argument("--cycles", type=int, default=5, help="Number of cycles to run.")
     run_p.set_defaults(func=_cmd_run)
+
+    bt_p = sub.add_parser("backtest", help="Walk-forward backtest on synthetic data.")
+    bt_p.add_argument("--history", type=int, default=1200, help="Number of bars to simulate.")
+    bt_p.set_defaults(func=_cmd_backtest)
 
     dash_p = sub.add_parser("dashboard", help="Serve the dashboard.")
     dash_p.set_defaults(func=_cmd_dashboard)
